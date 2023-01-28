@@ -4,7 +4,6 @@ import time
 from datetime import datetime
 import random
 import traceback
-import json
 
 
 TO_PROCESS_USERNAMES__FILE = 'usernames/to_process_usernames.txt'
