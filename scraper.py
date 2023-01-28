@@ -4,6 +4,8 @@ import time
 from datetime import datetime
 import random
 import traceback
+import json
+
 
 TO_PROCESS_USERNAMES__FILE = 'usernames/to_process_usernames.txt'
 PROCESSED_USERNAMES__FILE = 'usernames/processed_usernames.txt'
@@ -13,12 +15,11 @@ TWEETS__PATH = 'tweets/'
 TO_PROCESS_USERNAMES__SET = set()
 PROCESSED_USERNAMES__SET = set()
 
-NUMBER_OF_THREADS = 1
+NUMBER_OF_THREADS = 10
 
 
 def main():
     log("Starting...")
-
     read_processed_usernames(PROCESSED_USERNAMES__FILE)
     read_to_process_usernames(TO_PROCESS_USERNAMES__FILE)
 
@@ -34,6 +35,8 @@ def main():
     for thread in threads:
         thread.join()
 
+    save_processed_usernames(PROCESSED_USERNAMES__FILE)
+    save_usernames(TO_PROCESS_USERNAMES__FILE)
     log("Finished")
 
 
@@ -87,7 +90,6 @@ def scrap_twitter_with_exception_handling(lock):
 
             time.sleep(random_sleep)
 
-
 def scrap_twitter(lock):
     while TO_PROCESS_USERNAMES__SET:
         with lock:
@@ -101,23 +103,35 @@ def scrap_twitter(lock):
             get_user_tweets(username, lock)
 
 def get_user_tweets(username, lock):
-    file_name = f'{TWEETS__PATH}tweets_{username}.txt'
+    file_name = f'{TWEETS__PATH}{username}.json'
 
     non_arabic_count = 0
     mentions_set = set()
 
     with open(file_name, 'a', encoding="utf-8") as file:
+        file.write("{\"" + username + "\":[")
+        first_tweet = True
+
         for tweet in sntwitter.TwitterSearchScraper(f'from:{username}').get_items():
             if contains_arabic(tweet.content):
                 non_arabic_count = 0
                 save_mentioned_users(tweet.mentionedUsers, mentions_set)
-                file.write(tweet.content + "\n&&..&&..&&\n")
+                tweet_content = tweet.content.replace("\n", "\\n")
+
+                if first_tweet:
+                    file.write("\"" + tweet_content + "\"")
+                    first_tweet = False
+                
+                else:
+                    file.write(",\"" + tweet_content + "\"")
 
             else:
                 non_arabic_count += 1
 
             if non_arabic_count == 10:
                 break
+
+        file.write("]}")
 
     with lock:
         TO_PROCESS_USERNAMES__SET.update(mentions_set)
